@@ -5,7 +5,6 @@ import (
 	"net/http"
 
 	"github.com/luisfernandogaido/expediente/sessao"
-	_ "github.com/luisfernandogaido/expediente/sessao"
 )
 
 func main() {
