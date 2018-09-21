@@ -2,32 +2,45 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"net/http"
+	"time"
 
 	"github.com/luisfernandogaido/expediente/sessao"
 )
 
 func main() {
-	if err := sessao.Ini("SESSAO_GO", "files"); err != nil {
-		log.Fatal(err)
-	}
+	ga, _ := sessao.NewGerenciadorArquivos("./sessoes")
+	//ga = sessao.NewGerenciadorRam()
+	sessao.Init("SESSAO_GO", ga)
 	http.HandleFunc("/", index)
+	http.HandleFunc("/zera", zera)
+	http.Handle("/favicon.ico", http.NotFoundHandler())
 	http.ListenAndServe(":8080", nil)
 }
 
 func index(w http.ResponseWriter, r *http.Request) {
-	sess, _ := sessao.Inicia(r)
-	var acessos int
-	if a, ok := sess["acessos"]; ok {
-		acessos = a.(int)
+	sess, err := sessao.Inicia(r)
+	if err != nil {
+		http.Error(w, err.Error(), 500)
+		return
 	}
-	acessos++
-	sess["acessos"] = acessos
-	sessao.Salva(w, r, sess)
+	var contador int
+	if c, ok := sess["contador"]; ok {
+		contador = c.(int)
+	}
+	contador++
+	sess["contador"] = contador
+	sess["agora"] = time.Now()
+	if err := sessao.Salva(w, r, sess); err != nil {
+		http.Error(w, err.Error(), 500)
+		return
+	}
+	fmt.Fprintln(w, sess)
+}
+
+func zera(w http.ResponseWriter, r *http.Request) {
 	if err := sessao.Destroi(w, r); err != nil {
 		http.Error(w, err.Error(), 500)
 		return
 	}
-	fmt.Fprint(w, acessos)
 }

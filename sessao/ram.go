@@ -1,57 +1,40 @@
 package sessao
 
 import (
-	"net/http"
 	"sync"
 )
 
-type handlerRAM struct {
+type gerenciadorRAM struct {
 	sessoes map[string]map[string]interface{}
 	mu      sync.RWMutex
 }
 
-func newHandlerRAM() handler {
-	hr := handlerRAM{
+func NewGerenciadorRam() Gerenciador {
+	return gerenciadorRAM{
 		sessoes: make(map[string]map[string]interface{}),
 	}
-	return hr
 }
 
-func (h handlerRAM) inicia(r *http.Request) (map[string]interface{}, error) {
-	novaSess := make(map[string]interface{})
-	cookie, err := r.Cookie(nome)
-	if err != nil {
-		return novaSess, nil
-	}
-	h.mu.RLock()
-	defer h.mu.RUnlock()
-	sess, ok := h.sessoes[cookie.Value]
+func (g gerenciadorRAM) Inicia(cookieValue string) (map[string]interface{}, error) {
+	g.mu.RLock()
+	defer g.mu.RUnlock()
+	sess, ok := g.sessoes[cookieValue]
 	if !ok {
-		return novaSess, nil
+		return make(map[string]interface{}), nil
 	}
 	return sess, nil
 }
 
-func (h handlerRAM) salva(w http.ResponseWriter, r *http.Request, sess map[string]interface{}) error {
-	cookie, err := r.Cookie(nome)
-	if err != nil {
-		cookie = &http.Cookie{
-			Name:  nome,
-			Value: stringAleatoria(),
-		}
-		http.SetCookie(w, cookie)
-	}
-	h.mu.Lock()
-	defer h.mu.Unlock()
-	h.sessoes[cookie.Value] = sess
+func (g gerenciadorRAM) Salva(cookieValue string, sess map[string]interface{}) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.sessoes[cookieValue] = sess
 	return nil
 }
 
-func (h handlerRAM) destroi(r *http.Request) error {
-	cookie, err := r.Cookie(nome)
-	if err != nil {
-		return nil
-	}
-	delete(h.sessoes, cookie.Value)
+func (g gerenciadorRAM) Destroi(cookieValue string) error {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	delete(g.sessoes, cookieValue)
 	return nil
 }

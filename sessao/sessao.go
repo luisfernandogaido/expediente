@@ -1,65 +1,91 @@
 package sessao
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"net/http"
 	"time"
-
-	"github.com/pkg/errors"
 )
 
-var (
-	nome string
-	hdl  handler
+const (
+	timeout = 2
 )
 
 func init() {
 	rand.Seed(time.Now().UnixNano())
 }
 
-func Ini(nomeSess string, nomeHandler string) error {
-	var err error
-	nome = nomeSess
-	switch nomeHandler {
-	case "ram":
-		hdl = newHandlerRAM()
-		return nil
-	case "files":
-		hdl, err = newHandlerFiles()
-		return err
-	default:
-		return errors.New("sessão: nome do handler desconhecido")
-	}
-	return nil
+var (
+	nomeSess string
+	g        Gerenciador
+)
+
+type Gerenciador interface {
+	Inicia(cookieValue string) (map[string]interface{}, error)
+	Salva(cookieValue string, s map[string]interface{}) error
+	Destroi(cookieValue string) error
+}
+
+func Init(nome string, gerenciador Gerenciador) {
+	nomeSess = nome
+	g = gerenciador
+
 }
 
 func Inicia(r *http.Request) (map[string]interface{}, error) {
-	return hdl.inicia(r)
+	if g == nil {
+		return nil, errors.New("sessão: gerenciador não definido")
+	}
+	novaSess := make(map[string]interface{})
+	cookie, err := r.Cookie(nomeSess)
+	if err != nil {
+		return novaSess, nil
+	}
+	return g.Inicia(cookie.Value)
 }
 
 func Salva(w http.ResponseWriter, r *http.Request, sess map[string]interface{}) error {
-	return hdl.salva(w, r, sess)
+	cookie, err := r.Cookie(nomeSess)
+	if err != nil {
+		sa, err := stringAleatoria()
+		if err != nil {
+			return err
+		}
+		cookie = &http.Cookie{
+			Name:     nomeSess,
+			Value:    sa,
+			HttpOnly: true,
+		}
+		http.SetCookie(w, cookie)
+	}
+	var ultimaAtividade time.Time
+	if ua, ok := sess[cookie.Value+":ultima_atividade"]; ok {
+		ultimaAtividade = ua.(time.Time)
+		if time.Now().Sub(ultimaAtividade).Seconds() > timeout {
+			Destroi(w, r)
+			return errors.New("sessão: expirada")
+		}
+	}
+	sess[cookie.Value+":ultima_atividade"] = time.Now()
+	return g.Salva(cookie.Value, sess)
 }
 
 func Destroi(w http.ResponseWriter, r *http.Request) error {
-	cookie, err := r.Cookie(nome)
+	cookie, err := r.Cookie(nomeSess)
 	if err != nil {
-		return hdl.destroi(r)
+		return err
 	}
 	cookie.Expires = time.Unix(0, 0)
 	http.SetCookie(w, cookie)
-	return hdl.destroi(r)
+	return g.Destroi(cookie.Value)
 }
 
-func stringAleatoria() string {
+func stringAleatoria() (string, error) {
 	bytes := make([]byte, 16)
-	rand.Read(bytes)
-	return fmt.Sprintf("%x", bytes)
-}
-
-type handler interface {
-	inicia(*http.Request) (map[string]interface{}, error)
-	salva(http.ResponseWriter, *http.Request, map[string]interface{}) error
-	destroi(*http.Request) error
+	_, err := rand.Read(bytes)
+	if err != nil {
+		return "", errors.New("sessao: erro ao gerar string aleatória")
+	}
+	return fmt.Sprintf("%x", bytes), nil
 }
