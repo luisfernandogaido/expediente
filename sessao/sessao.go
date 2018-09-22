@@ -9,7 +9,7 @@ import (
 )
 
 const (
-	timeout = 2
+	timeout = 1200
 )
 
 func init() {
