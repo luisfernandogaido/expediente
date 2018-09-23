@@ -18,7 +18,7 @@ func init() {
 
 var (
 	nomeSess string
-	g        Gerenciador
+	gerSess  Gerenciador
 )
 
 type Gerenciador interface {
@@ -29,20 +29,20 @@ type Gerenciador interface {
 
 func Init(nome string, gerenciador Gerenciador) {
 	nomeSess = nome
-	g = gerenciador
+	gerSess = gerenciador
 
 }
 
 func Inicia(r *http.Request) (map[string]interface{}, error) {
-	if g == nil {
-		return nil, errors.New("sessão: gerenciador não definido")
+	if gerSess == nil {
+		return nil, errors.New("sessão: gerSess não definido")
 	}
 	novaSess := make(map[string]interface{})
 	cookie, err := r.Cookie(nomeSess)
 	if err != nil {
 		return novaSess, nil
 	}
-	return g.Inicia(cookie.Value)
+	return gerSess.Inicia(cookie.Value)
 }
 
 func Salva(w http.ResponseWriter, r *http.Request, sess map[string]interface{}) error {
@@ -68,7 +68,7 @@ func Salva(w http.ResponseWriter, r *http.Request, sess map[string]interface{}) 
 		}
 	}
 	sess[cookie.Value+":ultima_atividade"] = time.Now()
-	return g.Salva(cookie.Value, sess)
+	return gerSess.Salva(cookie.Value, sess)
 }
 
 func Destroi(w http.ResponseWriter, r *http.Request) error {
@@ -78,7 +78,7 @@ func Destroi(w http.ResponseWriter, r *http.Request) error {
 	}
 	cookie.Expires = time.Unix(0, 0)
 	http.SetCookie(w, cookie)
-	return g.Destroi(cookie.Value)
+	return gerSess.Destroi(cookie.Value)
 }
 
 func stringAleatoria() (string, error) {
